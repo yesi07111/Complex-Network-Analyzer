@@ -33,6 +33,13 @@ class ComplexNetworkAnalyzer:
     def generate_graph(self, graph_type, is_directed, is_weighted, is_acyclic, num_nodes, edge_probability, min_weight, max_weight, min_capacity, max_capacity, decimal_places=2, with_range=False, rational=False):        
         if num_nodes > 1000:
             num_nodes = 1000
+        if num_nodes > 200 and graph_type != "Grafo":
+            num_nodes = 200
+        if edge_probability > 0.4 and graph_type != "Grafo":
+            edge_probability = 0.4
+        if num_nodes > 50 and graph_type == "Red de flujo":
+            num_nodes = 50
+
         if is_acyclic:
             if is_directed:
                 G = self.generate_random_dag(num_nodes, edge_probability)
@@ -914,10 +921,11 @@ class ComplexNetworkAnalyzer:
         else:
             return "El grafo no es acíclico dirigido"
 
-    def max_flow(self, source, sink):
+    def max_flow(self):
         if self.G is None:
             return "Grafo no generado aún"
-
+        source = 0
+        sink = len(self.G.nodes) -1
         # Calcula el flujo máximo
         flow_value, flow_dict = nx.maximum_flow(self.G, source, sink)
 

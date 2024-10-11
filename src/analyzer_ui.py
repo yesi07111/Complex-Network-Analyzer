@@ -179,7 +179,7 @@ class NetworkAnalyzerGUI:
             "Distribución de Información": "analyze_information_distribution",
             "Centralidad de grado": "calculate_centrality",
             "Camino más largo entre dos nodos": "longest_path",
-            "Camino más cort entre dos nodos": "shortest_path",
+            "Camino más corto entre dos nodos": "shortest_path",
             "Camino de costo mínimo": "shortest_weighted_path",
             "Coeficiente de agrupamiento": "clustering_coefficient",
             "Camino más corto promedio": "average_shortest_path",
@@ -209,7 +209,7 @@ class NetworkAnalyzerGUI:
             "Centralidad de Katz": "katz_centrality",
             # "Camino más corto en DAG": "shortest_path_dag",
             "Ordenamiento topológico": "topological_sort",
-            "Contar caminos": "count_paths",
+            # "Contar caminos": "count_paths",
             "Reducción transitiva": "transitive_reduction",
             "Flujo máximo": "max_flow",
             "Diámetro del bosque": "diameter_of_forest",
@@ -250,46 +250,49 @@ class NetworkAnalyzerGUI:
 
         available_analyses = []
 
+        if graph_type == "Red de flujo":
+            basic_analyses = ["Flujo máximo"]
+        else:
         # Añadir análisis básicos disponibles para todos los tipos de grafos
-        basic_analyses = [
-            "Distribución de Información", "Centralidad de grado", "Coeficiente de agrupamiento",
-            "Centralidad de intermediación", "Centralidad de autovector", "Detección de comunidades",
-            "Detección de puentes", "Puntos de articulación", "Coeficiente de club rico",
-            "Distribución de grado", "Grado promedio de vecinos", "Número de núcleo",
-            "Número de clique aproximado", "Eficiencia global", "Eficiencia local",
-            "Brecha espectral", "Coeficiente de correlación de Pearson de grado",
-            "Centralidad de PageRank", "Centralidad de Katz", "Coeficiente de asortatividad"
-        ]
+            basic_analyses = [
+                "Distribución de Información", "Centralidad de grado",
+                "Centralidad de intermediación", "Detección de comunidades",
+                "Detección de puentes", "Puntos de articulación",
+                "Distribución de grado", "Grado promedio de vecinos",
+                 "Eficiencia global", "Eficiencia local",
+                "Brecha espectral", "Coeficiente de correlación de Pearson de grado",
+                "Centralidad de PageRank", "Coeficiente de asortatividad"
+            ]
         available_analyses.extend(basic_analyses)
 
         # Añadir análisis específicos según el tipo de grafo y sus propiedades
-        if graph_type != "Pseudografo":
+        if graph_type not in ["Pseudografo", "Multigrafo", "Red de flujo"]:
             available_analyses.extend([
-                "Calcular Diámetro", "Calcular Radio", "Camino más corto promedio",
-                "Coeficiente de mundo pequeño", "Prueba de libre escala"
+                 "Camino más corto promedio", "Coeficiente de agrupamiento",
+                "Coeficiente de mundo pequeño", "Prueba de libre escala", "Coeficiente de club rico",
+                "Número de núcleo", "Número de clique aproximado", "Centralidad de Katz"
             ])
 
-        if is_weighted:
+            
+        if graph_type not in ["Pseudografo", "Multigrafo", "Red de flujo"] and not is_directed:
+            available_analyses.extend([
+                 "Calcular Diámetro", "Calcular Radio", "Centralidad de autovector", "Camino más corto entre dos nodos", "Camino más largo entre dos nodos"
+            ])
+
+        if is_weighted and not graph_type == "Red de flujo":
             available_analyses.extend([
                 "Camino de costo mínimo", "Camino de costo máximo",
                 "Camino de costo mínimo global", "Camino de costo máximo global"
             ])
-        else:
-            available_analyses.extend(["Camino más corto entre dos nodos", "Camino más largo entre dos nodos"])
 
-        if graph_type == "Red de flujo":
-            available_analyses.append("Flujo máximo")
-
-        if is_acyclic and is_directed:
+        if is_acyclic and is_directed and not graph_type == "Red de flujo":
             available_analyses.extend([
                 "Ordenamiento topológico",
                  "Reducción transitiva"
             ])
-        if not is_acyclic:
-            available_analyses.extend([
-            "Contar caminos"])
+  
 
-        if not is_directed and is_acyclic:
+        if not is_directed and is_acyclic and not graph_type == "Red de flujo":
             available_analyses.extend([
                 "Diámetro del bosque", "Centros del bosque", "Centroides del bosque",
                 "Conteo de hojas del bosque", "Alturas del bosque"
@@ -731,7 +734,7 @@ class NetworkAnalyzerGUI:
                 self.min_weight.set(10)
                 self.max_weight.set(30)
         elif graph_type == "Red de flujo":
-            rational = True if self.additional_options["capacity_type"].get() else False
+            rational = True if self.additional_options["capacity_type"].get() == "Racional" else False
             if rational and not specific_weight_range:
                 self.min_capacity.set(0.1)
                 self.max_capacity.set(1.0)
@@ -740,7 +743,14 @@ class NetworkAnalyzerGUI:
         edge_probability = self.edge_prob.get()
 
         if num_nodes > 1000:
-            messagebox.showwarning("Advertencia", "No se soportan más de 1000 nodos.")
+            messagebox.showwarning("Advertencia", "No se soportan más de 1000 nodos para grafos simples.")
+        if num_nodes > 200 and graph_type != "Grafo":     
+            messagebox.showwarning("Advertencia", "No se soportan más de 200 nodos para grafos no simples.")
+
+        if graph_type == "Red de flujo" and num_nodes > 50:
+            messagebox.showwarning("Advertencia", "No se soportan más de 50 nodos para redes de flujo.")
+            
+
 
         if(is_weighted):
             self.node_weight_see.grid(row=17, column=0)
@@ -2477,21 +2487,21 @@ class NetworkAnalyzerGUI:
             message = result
         messagebox.showinfo("Ordenamiento Topológico", message)
 
-    def show_count_paths(self, start, end):
-        result = self.analyzer.count_paths(start, end)
-        if isinstance(result, int):
-            message = f"Número de caminos de {start} a {end}: {result}"
-        else:
-            message = result
-        messagebox.showinfo("Conteo de Caminos", message)
+    # def show_count_paths(self, start, end):
+    #     result = self.analyzer.count_paths(start, end)
+    #     if isinstance(result, int):
+    #         message = f"Número de caminos de {start} a {end}: {result}"
+    #     else:
+    #         message = result
+    #     messagebox.showinfo("Conteo de Caminos", message)
 
     def show_transitive_reduction(self):
         result = self.analyzer.transitive_reduction()
         messagebox.showinfo("Reducción Transitiva", result)
 
-    def show_max_flow(self, source, sink):
+    def show_max_flow(self):
         function_name = "show_max_flow"
-        result = self.analyzer.max_flow(source, sink)
+        result = self.analyzer.max_flow()
 
         if isinstance(result, str):
             messagebox.showinfo("Error", result)
@@ -2509,7 +2519,7 @@ class NetworkAnalyzerGUI:
                 edge_labels = {(u, v): f"{d['flow']}/{d['capacity']}" for (u, v, d) in flow_graph.edges(data=True)}
                 nx.draw_networkx_edge_labels(flow_graph, pos, edge_labels=edge_labels, font_size=6)
                 
-                ax.set_title(f"Flujo Máximo de {source} a {sink}")
+                ax.set_title(f"Flujo Máximo de {0} a {len(self.analyzer.G.nodes) -1}")
                 self.fig = fig
                 self.cache.save_to_cache(function_name, self.analyzer.G, fig)
 
