@@ -10,6 +10,7 @@ import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 from collections import defaultdict
+from matplotlib.colors import to_rgb
 
 class SimulationInputWindow(tk.Toplevel):
     def __init__(self, parent, graph, pos):
@@ -31,13 +32,20 @@ class SimulationInputWindow(tk.Toplevel):
         self.simulation = Simulation(self.graph, diff_p, accep_p, res_c, mod_c)
         
         self.initial_info = {vec[0]: np.array(vec[1:]) for vec in self.node_data}
+        
+        max_norm = max(np.linalg.norm(self.initial_info[i]) for i in self.initial_info)
+        
+        for i in self.initial_info:
+            self.initial_info[i] /= max_norm
+        
+        self.simulation_max_steps = self.simulation_max_steps_widget.get()
         self.simulation_iter = self.simulation.simulate_information_diffusion(self.initial_info, self.simulation_max_steps)
 
         self.switch_to_simulation_view()
 
     def init_widgets(self):
         self.title("Configuración")
-        self.geometry("380x200")
+        self.geometry("380x250")
 
         # Primer grid
         frame1 = ttk.Frame(self, padding="10")
@@ -90,9 +98,18 @@ class SimulationInputWindow(tk.Toplevel):
 
         ttk.Button(frame2, text="Continuar", command=self.open_node_window).grid(row=0, column=2)
 
+        # Tercer grid
+        frame3 = ttk.Frame(self, padding="10")
+        frame3.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+        ttk.Label(frame3, text="Cantidad de pasos a simular:").grid(row=0, column=0, sticky=tk.W)
+        self.simulation_max_steps_widget = tk.IntVar(value=100)
+        simulation_max_steps_widget = ttk.Entry(frame3, width=10, textvariable=self.simulation_max_steps_widget)
+        simulation_max_steps_widget.grid(row=0, column=1)
+
         # Botones finales
-        ttk.Button(self, text="Continuar", command=self.start_simulation).grid(row=2, column=0, sticky=tk.E, padx=5, pady=5)
-        ttk.Button(self, text="Cancelar", command=self.destroy).grid(row=2, column=0, sticky=tk.E, padx=(0,80), pady=5)
+        ttk.Button(self, text="Continuar", command=self.start_simulation).grid(row=3, column=0, sticky=tk.E, padx=5, pady=5)
+        ttk.Button(self, text="Cancelar", command=self.destroy).grid(row=3, column=0, sticky=tk.E, padx=(0,80), pady=5)
     
     def switch_to_simulation_view(self):
         self.title("Simulation Input")
@@ -278,22 +295,31 @@ class NodeInfoInputWindow(tk.Toplevel):
         self.canvas.configure(yscrollcommand=scrollbar.set)
 
         # Crear un frame dentro del Canvas
+        self.color_options = [
+            "red", "green", "blue", "yellow", "purple", "orange", 
+            "pink", "cyan", "magenta", "brown", "gray", "black"
+        ]
+
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+
         self.frame = ttk.Frame(self.canvas)
         self.canvas.create_window((0, 0), window=self.frame, anchor='nw')
 
         for i in range(n):
             frame = ttk.Frame(self.frame, padding="5")
             frame.pack(fill=tk.X)
+            
             ttk.Label(frame, text=f"Nodo {i+1}:").pack(side=tk.LEFT)
+            
             node = ttk.Entry(frame, width=5)
             node.pack(side=tk.LEFT)
-            v1 = ttk.Entry(frame, width=5)
-            v1.pack(side=tk.LEFT)
-            v2 = ttk.Entry(frame, width=5)
-            v2.pack(side=tk.LEFT)
-            v3 = ttk.Entry(frame, width=5)
-            v3.pack(side=tk.LEFT)
-            self.vectors.append((node, v1, v2, v3))
+            
+            color_var = tk.StringVar(frame)
+            color_var.set(self.color_options[0])  # valor por defecto
+            color_dropdown = ttk.Combobox(frame, textvariable=color_var, values=self.color_options, width=10)
+            color_dropdown.pack(side=tk.LEFT)
+            
+            self.vectors.append((node, color_var))
 
         ttk.Button(self.frame, text="Aceptar", command=self.store_vectors).pack(pady=10)
 
@@ -309,7 +335,14 @@ class NodeInfoInputWindow(tk.Toplevel):
 
     def store_vectors(self):
         try:
-            self.result = [tuple(int(c.get()) for c in vector) for vector in self.vectors]
+            vec = []
+            for node, color_var in self.vectors:
+                node_num = int(node.get())
+                color_name = color_var.get()
+                rgb_vector = (node_num,) + to_rgb(color_name)
+                vec.append(rgb_vector)
+            
+            self.result = vec
             self.canvas.unbind_all("<MouseWheel>")
             self.destroy()
         except:
