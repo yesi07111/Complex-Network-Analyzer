@@ -31,6 +31,8 @@ class ComplexNetworkAnalyzer:
         self.G, self.pos = self.change_log.pop()
 
     def generate_graph(self, graph_type, is_directed, is_weighted, is_acyclic, num_nodes, edge_probability, min_weight, max_weight, min_capacity, max_capacity, decimal_places=2, with_range=False, rational=False):        
+        if num_nodes > 1000:
+            num_nodes = 1000
         if is_acyclic:
             if is_directed:
                 G = self.generate_random_dag(num_nodes, edge_probability)
@@ -146,7 +148,6 @@ class ComplexNetworkAnalyzer:
                 G.remove_edge(pred, origin)
             for succ in list(G.successors(end)):
                 G.remove_edge(end, succ)
-            
         else:
             max_edges = (num_nodes * (num_nodes - 1)) * (1 if is_directed else .5)
             expected_edges = np.floor(max_edges * edge_probability)
@@ -630,12 +631,12 @@ class ComplexNetworkAnalyzer:
         x = list(degree_counts.keys())
         y = list(degree_counts.values())
         
-        plt.figure(figsize=(10, 6))
-        plt.loglog(x, y, 'bo')
-        plt.xlabel('Grado (log)')
-        plt.ylabel('Frecuencia (log)')
-        plt.title('Distribución de grado (escala log-log)')
-        plt.show()
+        # plt.figure(figsize=(10, 6))
+        # plt.loglog(x, y, 'bo')
+        # plt.xlabel('Grado (log)')
+        # plt.ylabel('Frecuencia (log)')
+        # plt.title('Distribución de grado (escala log-log)')
+        # plt.show()
         
         # Ajuste de ley de potencia
         from scipy import stats
@@ -681,12 +682,12 @@ class ComplexNetworkAnalyzer:
         total_nodes = self.G.number_of_nodes()
         degree_prob = {k: v/total_nodes for k, v in degree_counts.items()}
         
-        plt.figure(figsize=(10, 6))
-        plt.bar(degree_prob.keys(), degree_prob.values())
-        plt.xlabel('Grado')
-        plt.ylabel('Probabilidad')
-        plt.title('Distribución de grado')
-        plt.show()
+        # plt.figure(figsize=(10, 6))
+        # plt.bar(degree_prob.keys(), degree_prob.values())
+        # plt.xlabel('Grado')
+        # plt.ylabel('Probabilidad')
+        # plt.title('Distribución de grado')
+        # plt.show()
         
         return degree_prob
 ##
@@ -812,7 +813,7 @@ class ComplexNetworkAnalyzer:
             centroids.append(find_centroid(subgraph))
 
         return centroids
-    
+    ###
     def leaves_count_of_forest(self):
         if self.G is None:
             return "Grafo no generado aún"
@@ -858,19 +859,22 @@ class ComplexNetworkAnalyzer:
         katz = nx.katz_centrality(self.G)
         return katz
     
-    def shortest_path_dag(self, start, end):
-        if self.G is None:
-            return "Grafo no generado aún"
+    # def shortest_path_dag(self, start, end):
+    #     if self.G is None:
+    #         return "Grafo no generado aún"
         
-        if not nx.is_directed_acyclic_graph(self.G):
-            return "El grafo no es acíclico dirigido"
+    #     if not nx.is_directed_acyclic_graph(self.G):
+    #         return "El grafo no es acíclico dirigido"
         
-        try:
-            path = nx.shortest_path(self.G, start, end, weight='weight')
-            cost = sum(self.G[path[i]][path[i+1]]['weight'] for i in range(len(path)-1))
-            return path, cost
-        except nx.NetworkXNoPath:
-            return f"No existe un camino de {start} a {end}", None
+    #     try:
+    #         path = nx.shortest_path(self.G, start, end, weight='weight')
+    #         if nx.is_weighted(self.G):
+    #             cost = sum(self.G[path[i]][path[i+1]]['weight'] for i in range(len(path)-1))
+    #         else:
+    #             cost = 0
+    #         return path, cost
+    #     except nx.NetworkXNoPath:
+    #         return f"No existe un camino de {start} a {end}", None
 
     def topological_sort(self):
         if self.G is None:

@@ -12,11 +12,7 @@ class Cache:
         return cached_data == current_data
     def get_cache(self, function_name):
         return self.cache_data[function_name]['figure']
-    # def save_to_cache(self, function_name, G, fig):
-    #     self.cache_data[function_name] = {
-    #         'graph_data': self._get_graph_data(G),
-    #         'figure': fig
-    #     }
+
     def save_to_cache(self, function_name, G, fig):
         self.cache_data[function_name] = {
             'graph_data': self._get_graph_data(G),

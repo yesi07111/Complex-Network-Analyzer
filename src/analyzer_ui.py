@@ -14,7 +14,7 @@ import numpy as np
 
 from src.simulation_ui import SimulationInputWindow
 
-from collections import deque
+from collections import Counter, deque
 
 from src.analyzer import ComplexNetworkAnalyzer
 
@@ -70,8 +70,8 @@ class NetworkAnalyzerGUI:
         # Tipo de grafo
         ttk.Label(self.gen_frame, text="Tipo de grafo:").grid(row=2, column=0, sticky="w")
         self.graph_type = tk.StringVar()
-        graph_types = ["Red de flujo", "Pseudografo", "Multigrafo", "Grafo"]
-        self.graph_type_menu = ttk.Combobox(self.gen_frame, textvariable=self.graph_type, values=graph_types)
+        self.graph_types = ["Red de flujo", "Pseudografo", "Multigrafo", "Grafo"]
+        self.graph_type_menu = ttk.Combobox(self.gen_frame, textvariable=self.graph_type, values=self.graph_types)
         self.graph_type_menu.grid(row=2, column=1)
         self.graph_type_menu.bind("<<ComboboxSelected>>", self.update_options)
 
@@ -184,6 +184,7 @@ class NetworkAnalyzerGUI:
             "Coeficiente de agrupamiento": "clustering_coefficient",
             "Camino más corto promedio": "average_shortest_path",
             "Centralidad de intermediación": "betweenness_centrality",
+            "Coeficiente de asortatividad":"assortativity",
             "Calcular Diámetro": "calculate_diameter",
             "Calcular Radio": "calculate_radius",
             "Camino de costo máximo": "find_max_cost_path",
@@ -206,7 +207,7 @@ class NetworkAnalyzerGUI:
             "Coeficiente de correlación de Pearson de grado": "degree_pearson_correlation_coefficient",
             "Centralidad de PageRank": "pagerank_centrality",
             "Centralidad de Katz": "katz_centrality",
-            "Camino más corto en DAG": "shortest_path_dag",
+            # "Camino más corto en DAG": "shortest_path_dag",
             "Ordenamiento topológico": "topological_sort",
             "Contar caminos": "count_paths",
             "Reducción transitiva": "transitive_reduction",
@@ -257,7 +258,7 @@ class NetworkAnalyzerGUI:
             "Distribución de grado", "Grado promedio de vecinos", "Número de núcleo",
             "Número de clique aproximado", "Eficiencia global", "Eficiencia local",
             "Brecha espectral", "Coeficiente de correlación de Pearson de grado",
-            "Centralidad de PageRank", "Centralidad de Katz"
+            "Centralidad de PageRank", "Centralidad de Katz", "Coeficiente de asortatividad"
         ]
         available_analyses.extend(basic_analyses)
 
@@ -281,9 +282,12 @@ class NetworkAnalyzerGUI:
 
         if is_acyclic and is_directed:
             available_analyses.extend([
-                "Camino más corto en DAG", "Ordenamiento topológico",
-                "Contar caminos", "Reducción transitiva"
+                "Ordenamiento topológico",
+                 "Reducción transitiva"
             ])
+        if not is_acyclic:
+            available_analyses.extend([
+            "Contar caminos"])
 
         if not is_directed and is_acyclic:
             available_analyses.extend([
@@ -660,6 +664,7 @@ class NetworkAnalyzerGUI:
             # Dibujar el peso/capacidad de la arista
             edge_weight = d.get('weight', '') if self.additional_options["is_weighted"].get() else ''
             edge_capacity = d.get('capacity', '') if self.graph_type.get() == "Red de flujo" else ''
+            
             edge_label = edge_weight or edge_capacity
             if edge_label:
                 if u != v:  # No es un lazo
@@ -734,9 +739,13 @@ class NetworkAnalyzerGUI:
         num_nodes = self.num_nodes.get()
         edge_probability = self.edge_prob.get()
 
+        if num_nodes > 1000:
+            messagebox.showwarning("Advertencia", "No se soportan más de 1000 nodos.")
+
         if(is_weighted):
             self.node_weight_see.grid(row=17, column=0)
             self.two_nodes_weight_see.grid(row=17, column=1)
+        
 
         self.analyzer.generate_graph(graph_type, is_directed, is_weighted, is_acyclic, num_nodes, edge_probability, self.min_weight.get(), self.max_weight.get(), self.min_capacity.get(), self.max_capacity.get(), decimal_places, specific_weight_range, rational)
 
@@ -840,7 +849,7 @@ class NetworkAnalyzerGUI:
             all_edges = graph.edges(keys=True, data=True)
         else:
             all_edges = graph.edges(data=True)
-            if self.graph_type.get() != "Grafo":
+            if self.graph_type.get() not in self.graph_types:
                 self.graph_type.set("Grafo")
 
         edge_counts = {}
@@ -1902,3 +1911,619 @@ class NetworkAnalyzerGUI:
                 messagebox.showinfo("Resultado", result)
         else:
             messagebox.showinfo("Error", "Entrada inválida. Por favor, ingrese números válidos para todos los campos.")
+
+    def show_assortativity(self):
+        result = self.analyzer.assortativity()
+        if isinstance(result, float):
+            messagebox.showinfo("Coeficiente de Asortatividad", f"Coeficiente de asortatividad: {result:.4f}")
+        else:
+            messagebox.showinfo("Error", result)
+
+    def show_eigenvector_centrality(self):
+        function_name = "show_eigenvector_centrality"
+        result = self.analyzer.eigenvector_centrality()
+        
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            if self.cache.has_cache(function_name, self.analyzer.G):
+                self.fig = self.cache.get_cache(function_name)
+            else:
+                top_20 = dict(sorted(result.items(), key=lambda x: x[1], reverse=True)[:20])
+                
+                fig, ax = plt.subplots(figsize=(10, 6))
+                ax.bar(range(len(top_20)), list(top_20.values()))
+                ax.set_xlabel('Nodos')
+                ax.set_ylabel('Centralidad de autovector')
+                ax.set_title('Top 20 nodos por centralidad de autovector')
+                ax.set_xticks(range(len(top_20)))
+                ax.set_xticklabels(list(top_20.keys()), rotation=45)
+                
+                self.fig = fig
+                self.cache.save_to_cache(function_name, self.analyzer.G, self.fig)
+
+            # Limpiar el frame de visualización
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+            
+            # Crear un canvas de Matplotlib
+            canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+            messagebox.showinfo("Centralidad de Autovector", "Se muestra el gráfico de los 20 nodos con mayor centralidad de autovector.")
+
+    def show_community_detection(self):
+        function_name = "show_community_detection"
+        result = self.analyzer.community_detection()
+        
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            if self.cache.has_cache(function_name, self.analyzer.G):
+                self.fig = self.cache.get_cache(function_name)
+            else:
+                pos = nx.spring_layout(self.analyzer.G)
+                
+                fig, ax = plt.subplots(figsize=(12, 8))
+                
+                # Dibujar nodos y etiquetas
+                for i, community in enumerate(result):
+                    nx.draw_networkx_nodes(self.analyzer.G, pos, community, node_size=200, node_color=f"C{i}", ax=ax)
+                
+                nx.draw_networkx_edges(self.analyzer.G, pos, alpha=0.2, ax=ax)
+                
+                # Añadir etiquetas a los nodos
+                labels = {node: str(node) for node in self.analyzer.G.nodes()}
+                nx.draw_networkx_labels(self.analyzer.G, pos, labels, font_size=8, ax=ax)
+                
+                ax.set_title("Detección de Comunidades")
+                ax.axis('off')
+                
+                self.fig = fig
+                self.cache.save_to_cache(function_name, self.analyzer.G, self.fig)
+
+            # Limpiar el frame de visualización
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+            
+            # Crear un canvas de Matplotlib
+            canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+            messagebox.showinfo("Detección de Comunidades", f"Se han detectado {len(result)} comunidades.")
+
+    def show_small_world_coefficient(self):
+        result = self.analyzer.small_world_coefficient()
+        if isinstance(result, float):
+            messagebox.showinfo("Coeficiente de Mundo Pequeño", f"Coeficiente de mundo pequeño (sigma): {result:.4f}")
+        else:
+            messagebox.showinfo("Error", result)
+
+    def show_scale_free_test(self):
+        function_name = "show_scale_free_test"
+        result = self.analyzer.scale_free_test()
+        
+        if isinstance(result, str):
+            if result.startswith("Grafo no generado"):
+                messagebox.showinfo("Error", result)
+            else:
+                if self.cache.has_cache(function_name, self.analyzer.G):
+                    self.fig = self.cache.get_cache(function_name)
+                else:
+                    degrees = [d for n, d in self.analyzer.G.degree()]
+                    degree_counts = Counter(degrees)
+                    x = list(degree_counts.keys())
+                    y = list(degree_counts.values())
+                    
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    ax.loglog(x, y, 'bo')
+                    ax.set_xlabel('Grado (log)')
+                    ax.set_ylabel('Frecuencia (log)')
+                    ax.set_title('Distribución de grado (escala log-log)')
+                    
+                    self.fig = fig
+                    self.cache.save_to_cache(function_name, self.analyzer.G, self.fig)
+
+                # Limpiar el frame de visualización
+                for widget in self.plot_frame.winfo_children():
+                    widget.destroy()
+                
+                # Crear un canvas de Matplotlib
+                canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
+                canvas.draw()
+                canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+                messagebox.showinfo("Prueba de Escala Libre", result)
+
+    def show_bridge_detection(self):
+        function_name = "show_bridge_detection"
+        result = self.analyzer.bridge_detection()
+        
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            if self.cache.has_cache(function_name, self.analyzer.G):
+                self.fig = self.cache.get_cache(function_name)
+            else:
+                # Crear un subgrafo que incluya los puentes y sus nodos adyacentes
+                bridge_nodes = set([node for edge in result for node in edge])
+                subgraph = self.analyzer.G.subgraph(bridge_nodes)
+                pos = nx.spring_layout(subgraph)
+                
+                self.fig, self.ax = plt.subplots(figsize=(12, 8))
+                self.visualize_graph(subgraph, pos)
+                
+                # Resaltar los puentes
+                nx.draw_networkx_edges(subgraph, pos, ax=self.ax, edgelist=result, edge_color='r', width=2)
+                
+                # Aumentar el tamaño de los nodos y añadir etiquetas
+                nx.draw_networkx_nodes(subgraph, pos, ax=self.ax, node_size=300)
+                nx.draw_networkx_labels(subgraph, pos, ax=self.ax, font_size=8)
+                
+                self.ax.set_title("Detección de Puentes")
+                self.ax.axis('off')
+                
+                self.cache.save_to_cache(function_name, self.analyzer.G, self.fig)
+
+            # Limpiar el frame de visualización
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+            
+            # Crear un canvas de Matplotlib
+            canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+            messagebox.showinfo("Detección de Puentes", f"Se han detectado {len(result)} puentes.")
+    
+    def show_articulation_points(self):
+        function_name = "show_articulation_points"
+        result = self.analyzer.articulation_points()
+        
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            if self.cache.has_cache(function_name, self.analyzer.G):
+                self.fig = self.cache.get_cache(function_name)
+            else:
+                # Crear un subgrafo que incluya los puntos de articulación y sus vecinos
+                articulation_nodes = set(result)
+                for node in result:
+                    articulation_nodes.update(self.analyzer.G.neighbors(node))
+                subgraph = self.analyzer.G.subgraph(articulation_nodes)
+                pos = nx.spring_layout(subgraph)
+                
+                self.fig, self.ax = plt.subplots(figsize=(12, 8))
+                self.visualize_graph(subgraph, pos)
+                
+                # Resaltar los puntos de articulación
+                nx.draw_networkx_nodes(subgraph, pos, ax=self.ax, nodelist=result, node_color='r', node_size=400)
+                
+                # Aumentar el tamaño de los nodos y añadir etiquetas
+                nx.draw_networkx_nodes(subgraph, pos, ax=self.ax, node_size=300)
+                nx.draw_networkx_labels(subgraph, pos, ax=self.ax, font_size=8)
+                
+                self.ax.set_title("Puntos de Articulación")
+                self.ax.axis('off')
+                
+                self.cache.save_to_cache(function_name, self.analyzer.G, self.fig)
+
+            # Limpiar el frame de visualización
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+            
+            # Crear un canvas de Matplotlib
+            canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+            messagebox.showinfo("Puntos de Articulación", f"Se han detectado {len(result)} puntos de articulación.")
+
+    def show_rich_club_coefficient(self):
+        function_name = "show_rich_club_coefficient"
+        if len(self.analyzer.G.nodes) < 10 or len(self.analyzer.G.edges) < 10:
+            messagebox.showerror("Error", "El grafo debe tener más nodos/aristas para calcular el coeficiente del club rico")
+            return
+        result = self.analyzer.rich_club_coefficient()
+        
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            if self.cache.has_cache(function_name, self.analyzer.G):
+                self.fig = self.cache.get_cache(function_name)
+            else:
+                fig, ax = plt.subplots(figsize=(10, 6))
+                ax.plot(list(result.keys()), list(result.values()), 'bo-')
+                ax.set_xlabel('Grado')
+                ax.set_ylabel('Coeficiente Rich Club')
+                ax.set_title('Coeficiente Rich Club vs Grado')
+                
+                self.fig = fig
+                self.cache.save_to_cache(function_name, self.analyzer.G, self.fig)
+
+            # Limpiar el frame de visualización
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+            
+            # Crear un canvas de Matplotlib
+            canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+            messagebox.showinfo("Coeficiente Rich Club", "Se muestra el gráfico del Coeficiente Rich Club vs Grado.")
+
+    def show_degree_distribution(self):
+        function_name = "show_degree_distribution"
+        result = self.analyzer.degree_distribution()
+        
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            if self.cache.has_cache(function_name, self.analyzer.G):
+                self.fig = self.cache.get_cache(function_name)
+            else:
+                fig, ax = plt.subplots(figsize=(10, 6))
+                ax.bar(result.keys(), result.values())
+                ax.set_xlabel('Grado')
+                ax.set_ylabel('Probabilidad')
+                ax.set_title('Distribución de grado')
+                
+                self.fig = fig
+                self.cache.save_to_cache(function_name, self.analyzer.G, self.fig)
+            # Limpiar el frame de visualización
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+            
+            # Crear un canvas de Matplotlib
+            canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+            messagebox.showinfo("Distribución de Grado", "Se muestra el gráfico de la distribución de grado.")
+
+    def show_average_neighbor_degree(self):
+        result = self.analyzer.average_neighbor_degree()
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            avg_degree = sum(result.values()) / len(result)
+            messagebox.showinfo("Grado promedio de vecinos", f"Grado promedio de vecinos: {avg_degree:.4f}")
+            
+            # Visualización del histograma
+            fig, ax = plt.subplots()
+            ax.hist(list(result.values()), bins=20)
+            ax.set_xlabel("Grado promedio de vecinos")
+            ax.set_ylabel("Frecuencia")
+            ax.set_title("Distribución del grado promedio de vecinos")
+            
+            # Limpiar el frame de visualización
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+            
+            # Crear un canvas de Matplotlib
+            canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    def show_core_number(self):
+        result = self.analyzer.core_number()
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            avg_core = sum(result.values()) / len(result)
+            messagebox.showinfo("Número de core", f"Número de core promedio: {avg_core:.4f}")
+            
+            # Visualización del histograma
+            fig, ax = plt.subplots()
+            ax.hist(list(result.values()), bins=20)
+            ax.set_xlabel("Número de core")
+            ax.set_ylabel("Frecuencia")
+            ax.set_title("Distribución del número de core")
+            
+            # Limpiar el frame de visualización
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+            
+            # Crear un canvas de Matplotlib
+            canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    def show_approximate_clique_number(self):
+        result = self.analyzer.approximate_clique_number()
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            messagebox.showinfo("Número de clique aproximado", f"Número de clique aproximado: {result}")
+
+    def show_global_efficiency(self):
+        result = self.analyzer.global_efficiency()
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            messagebox.showinfo("Eficiencia global", f"Eficiencia global: {result:.4f}")
+
+    def show_local_efficiency(self):
+        result = self.analyzer.local_efficiency()
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            messagebox.showinfo("Eficiencia local", f"Eficiencia local: {result:.4f}")
+
+    def show_spectral_gap(self):
+        result = self.analyzer.spectral_gap()
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            messagebox.showinfo("Brecha espectral", f"Brecha espectral: {result:.4f}")
+
+    def show_degree_pearson_correlation_coefficient(self):
+        result = self.analyzer.degree_pearson_correlation_coefficient()
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            messagebox.showinfo("Coeficiente de correlación de Pearson del grado", f"Coeficiente: {result:.4f}")
+
+    def show_average_shortest_path_length(self):
+        result = self.analyzer.average_shortest_path_length()
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        elif result is None:
+            messagebox.showinfo("Error", "No se puede calcular la longitud promedio del camino más corto")
+        else:
+            messagebox.showinfo("Longitud promedio del camino más corto", f"Longitud: {result:.4f}")
+
+    def show_diameter_of_forest(self):
+        result = self.analyzer.diameter_of_forest()
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            messagebox.showinfo("Diámetro del bosque", f"Diámetro: {result}")
+
+    def show_centers_of_forest(self):
+        function_name = "show_centers_of_forest"
+        if self.cache.has_cache(function_name, self.analyzer.G):
+            self.fig = self.cache.get_cache(function_name)
+            self.canvas.figure = self.fig
+            self.canvas.draw()
+        else:
+            result = self.analyzer.centers_of_forest()
+            if isinstance(result, str):
+                messagebox.showinfo("Error", result)
+                return
+
+            subgraph = self.analyzer.G.copy()
+            pos = nx.spring_layout(subgraph)
+            
+            self.fig, self.ax = plt.subplots(figsize=(10, 8))
+            nx.draw(subgraph, pos, node_size=200, with_labels=True, font_size=8, ax=self.ax)
+            
+            centers = [node for component in result for node in component]
+            nx.draw_networkx_nodes(subgraph, pos, nodelist=centers, node_color='r', node_size=300, ax=self.ax)
+            
+            self.ax.set_title("Centros del bosque (en rojo)")
+            
+            # Limpiar el frame de visualización
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+            
+            # Crear un canvas de Matplotlib
+            self.canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
+            self.canvas.draw()
+            self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+            
+            self.cache.save_to_cache(function_name, self.analyzer.G, self.fig)
+
+        messagebox.showinfo("Centros del bosque", f"Se han resaltado los centros en el grafo")
+
+    def show_centroids_of_forest(self):
+        function_name = "show_centroids_of_forest"
+        if self.cache.has_cache(function_name, self.analyzer.G):
+            self.fig = self.cache.get_cache(function_name)
+            self.canvas.figure = self.fig
+            self.canvas.draw()
+        else:
+            result = self.analyzer.centroids_of_forest()
+            if isinstance(result, str):
+                messagebox.showinfo("Error", result)
+                return
+
+            subgraph = self.analyzer.G.copy()
+            pos = nx.spring_layout(subgraph)
+            
+            self.fig, self.ax = plt.subplots(figsize=(10, 8))
+            nx.draw(subgraph, pos, node_size=200, with_labels=True, font_size=8, ax=self.ax)
+            
+            centroids = [node for component in result for node in component]
+            nx.draw_networkx_nodes(subgraph, pos, nodelist=centroids, node_color='g', node_size=300, ax=self.ax)
+            
+            self.ax.set_title("Centroides del bosque (en verde)")
+            
+            # Limpiar el frame de visualización
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+            
+            # Crear un canvas de Matplotlib
+            self.canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
+            self.canvas.draw()
+            self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+            
+            self.cache.save_to_cache(function_name, self.analyzer.G, self.fig)
+
+        messagebox.showinfo("Centroides del bosque", f"Se han resaltado los centroides en el grafo")
+
+
+    def show_leaves_count_of_forest(self):
+        result = self.analyzer.leaves_count_of_forest()
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            message = f"Conteo de hojas por componente:\n{', '.join(map(str, result))}"
+            messagebox.showinfo("Conteo de hojas del bosque", message)
+
+    def show_heights_of_forest(self):
+        result = self.analyzer.heights_of_forest()
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            message = f"Alturas de los árboles en el bosque:\n{', '.join(map(str, result))}"
+            messagebox.showinfo("Alturas del bosque", message)
+
+    def show_pagerank_centrality(self):
+        function_name = "show_pagerank_centrality"
+        result = self.analyzer.pagerank_centrality()
+
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            if self.cache.has_cache(function_name, self.analyzer.G):
+                self.fig = self.cache.get_cache(function_name)
+            else:
+                # Crear visualización
+                fig, ax = plt.subplots()
+                sorted_pagerank = sorted(result.items(), key=lambda x: x[1], reverse=True)
+                nodes, values = zip(*sorted_pagerank[:20])  # Top 20 nodos
+                ax.bar(nodes, values)
+                ax.set_title("Top 20 nodos por PageRank")
+                ax.set_xlabel("Nodos")
+                ax.set_ylabel("PageRank")
+                plt.xticks(rotation=45, ha='right')
+                self.fig = fig
+                self.cache.save_to_cache(function_name, self.analyzer.G, fig)
+
+            # Limpiar el frame de visualización
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+
+            # Crear un canvas de Matplotlib
+            canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+            avg_pagerank = sum(result.values()) / len(result)
+            messagebox.showinfo("PageRank Promedio", f"PageRank promedio: {avg_pagerank:.4f}")
+
+    def show_katz_centrality(self):
+        function_name = "show_katz_centrality"
+        result = self.analyzer.katz_centrality()
+
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            if self.cache.has_cache(function_name, self.analyzer.G):
+                self.fig = self.cache.get_cache(function_name)
+            else:
+                # Crear visualización
+                fig, ax = plt.subplots()
+                sorted_katz = sorted(result.items(), key=lambda x: x[1], reverse=True)
+                nodes, values = zip(*sorted_katz[:20])  # Top 20 nodos
+                ax.bar(nodes, values)
+                ax.set_title("Top 20 nodos por Centralidad de Katz")
+                ax.set_xlabel("Nodos")
+                ax.set_ylabel("Centralidad de Katz")
+                plt.xticks(rotation=45, ha='right')
+                self.fig = fig
+                self.cache.save_to_cache(function_name, self.analyzer.G, fig)
+
+            # Limpiar el frame de visualización
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+
+            # Crear un canvas de Matplotlib
+            canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+            avg_katz = sum(result.values()) / len(result)
+            messagebox.showinfo("Centralidad de Katz Promedio", f"Centralidad de Katz promedio: {avg_katz:.4f}")
+
+    # def show_shortest_path_dag(self):
+    #     class PathDialog(simpledialog.Dialog):
+    #         def body(self, master):
+    #             tk.Label(master, text="Nodo de inicio:").grid(row=0)
+    #             tk.Label(master, text="Nodo de fin:").grid(row=1)
+    #             self.e1 = tk.Entry(master)
+    #             self.e2 = tk.Entry(master)
+    #             self.e1.grid(row=0, column=1)
+    #             self.e2.grid(row=1, column=1)
+    #             return self.e1  # initial focus
+
+    #         def apply(self):
+    #             try:
+    #                 self.start = int(self.e1.get())
+    #                 self.end = int(self.e2.get())
+    #             except ValueError:
+    #                 self.start = None
+    #                 self.end = None
+
+    #     dialog = PathDialog(self.master, title="Ingrese los nodos")
+    #     result = self.analyzer.shortest_path_dag(dialog.start, dialog.end)
+    #     if isinstance(result, tuple):
+    #         path, cost = result
+    #         if path and cost is not None:
+    #             message = f"Camino más corto: {' -> '.join(path)}\nCosto: {cost}"
+    #         else:
+    #             message = path
+    #     else:
+    #         message = result
+    #     messagebox.showinfo("Camino más corto en DAG", message)
+
+    def show_topological_sort(self):
+        result = self.analyzer.topological_sort()
+        if isinstance(result, list):
+            message = f"Orden topológico: {' -> '.join(map(str, result))}"
+        else:
+            message = result
+        messagebox.showinfo("Ordenamiento Topológico", message)
+
+    def show_count_paths(self, start, end):
+        result = self.analyzer.count_paths(start, end)
+        if isinstance(result, int):
+            message = f"Número de caminos de {start} a {end}: {result}"
+        else:
+            message = result
+        messagebox.showinfo("Conteo de Caminos", message)
+
+    def show_transitive_reduction(self):
+        result = self.analyzer.transitive_reduction()
+        messagebox.showinfo("Reducción Transitiva", result)
+
+    def show_max_flow(self, source, sink):
+        function_name = "show_max_flow"
+        result = self.analyzer.max_flow(source, sink)
+
+        if isinstance(result, str):
+            messagebox.showinfo("Error", result)
+        else:
+            flow_value, flow_graph = result
+            if self.cache.has_cache(function_name, self.analyzer.G):
+                self.fig = self.cache.get_cache(function_name)
+            else:
+                # Crear visualización
+                fig, ax = plt.subplots()
+                pos = nx.spring_layout(flow_graph)
+                nx.draw(flow_graph, pos, ax=ax, with_labels=True, node_size=200, node_color='lightblue', font_size=8)
+                
+                # Agregar etiquetas de flujo en las aristas
+                edge_labels = {(u, v): f"{d['flow']}/{d['capacity']}" for (u, v, d) in flow_graph.edges(data=True)}
+                nx.draw_networkx_edge_labels(flow_graph, pos, edge_labels=edge_labels, font_size=6)
+                
+                ax.set_title(f"Flujo Máximo de {source} a {sink}")
+                self.fig = fig
+                self.cache.save_to_cache(function_name, self.analyzer.G, fig)
+
+            # Limpiar el frame de visualización
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+
+            # Crear un canvas de Matplotlib
+            canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+            messagebox.showinfo("Flujo Máximo", f"Valor del flujo máximo: {flow_value}")
+
+
+
+
