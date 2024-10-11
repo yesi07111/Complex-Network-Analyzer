@@ -1,8 +1,9 @@
 import time
 import random
-import numpy as np
+import random
 import networkx as nx
 import matplotlib.pyplot as plt
+import numpy as np
 from collections import deque, Counter, defaultdict
 
 class ComplexNetworkAnalyzer:
@@ -29,7 +30,7 @@ class ComplexNetworkAnalyzer:
             return
         self.G, self.pos = self.change_log.pop()
 
-    def generate_graph(self, graph_type, is_directed, is_weighted, is_acyclic, num_nodes, edge_probability):
+    def generate_graph(self, graph_type, is_directed, is_weighted, is_acyclic, num_nodes, edge_probability, min_weight, max_weight, min_capacity, max_capacity, decimal_places=2, with_range=False, rational=False):        
         if is_acyclic:
             if is_directed:
                 G = self.generate_random_dag(num_nodes, edge_probability)
@@ -126,18 +127,15 @@ class ComplexNetworkAnalyzer:
                     source = random.choice(range(0, node))
                     G.add_edge(source, node)
     
-            if not self.additional_options["weight_range"].get() and self.capacity_type_menu.get() == "Racional":
+            if not with_range and rational:
                 min_capacity = 0
                 max_capacity = 1
-            else:
-                min_capacity = self.min_capacity.get()
-                max_capacity = self.max_capacity.get()
 
             for (u, v) in G.edges():
-                if self.capacity_type_menu.get() == "Entero":
+                if not rational:
                     G[u][v]['capacity'] = random.randint(min_capacity, max_capacity)
                 else:
-                    roundvalue = self.additional_options["decimal_places"].get()
+                    roundvalue = decimal_places
                     G[u][v]['capacity'] = round(random.uniform(min_capacity, max_capacity), roundvalue)
 
     
@@ -157,10 +155,7 @@ class ComplexNetworkAnalyzer:
 
             G = nx.gnm_random_graph(n=num_nodes, m=num_edges, directed=is_directed)        
     
-        if is_weighted and graph_type != "Red de flujo":
-            min_weight = self.min_weight.get()
-            max_weight = self.max_weight.get()
-            
+        if is_weighted and graph_type != "Red de flujo": 
             if isinstance(G, (nx.MultiGraph, nx.MultiDiGraph)):
                 all_edges = G.edges(keys=True)
             else:
@@ -172,25 +167,22 @@ class ComplexNetworkAnalyzer:
                 else:
                     u, v = edge
 
-                if self.weight_type_menu.get() != "Entero":
-                    roundvalue = self.additional_options["decimal_places"].get()
+                if rational:
+                    roundvalue = decimal_places
                     weight = round(random.uniform(min_weight, max_weight), roundvalue)
                 else:
-                    if not self.additional_options["weight_range"].get():
+                    if not with_range:
                         min_weight = 5
                         max_weight = 30
                     else:
-                        min_weight = round(self.min_weight.get(), 0)
-                        max_weight = round(self.max_weight.get(), 0) 
-                    print(f"Pesos en caso de entero: {min_weight}, {max_weight}")
+                        min_weight = round(min_weight, 0)
+                        max_weight = round(max_weight, 0) 
                     weight = random.randint(min_weight, max_weight)
 
                 if isinstance(G, (nx.MultiGraph, nx.MultiDiGraph)):
                     G[u][v][key]['weight'] = weight
                 else:
                     G[u][v]['weight'] = weight
-            self.node_weight_see.grid(row=17, column=0)
-            self.two_nodes_weight_see.grid(row=17, column=1)
 
         self.G = G
     
@@ -210,79 +202,78 @@ class ComplexNetworkAnalyzer:
                         G.add_edge(u, v)
         return G
 
-    def make_acyclic(self):
-        if isinstance(self.G, (nx.MultiGraph, nx.MultiDiGraph)):
-            # Para multigrafos, convertimos temporalmente a un grafo simple
-            temp_G = nx.Graph() if not self.G.is_directed() else nx.DiGraph()
-            temp_G.add_edges_from(self.G.edges())
+    # def make_acyclic(self):
+    #     if isinstance(self.G, (nx.MultiGraph, nx.MultiDiGraph)):
+    #         # Para multigrafos, convertimos temporalmente a un grafo simple
+    #         temp_G = nx.Graph() if not self.G.is_directed() else nx.DiGraph()
+    #         temp_G.add_edges_from(self.G.edges())
             
-            if temp_G.is_directed():
-                # Para grafos dirigidos
-                cycle_edges = list(nx.find_cycle(temp_G, orientation='original'))
-                while cycle_edges:
-                    edge_to_remove = random.choice(cycle_edges)
-                    self.G.remove_edge(*edge_to_remove)
-                    temp_G.remove_edge(*edge_to_remove)
-                    try:
-                        cycle_edges = list(nx.find_cycle(temp_G, orientation='original'))
-                    except nx.NetworkXNoCycle:
-                        break
-            else:
-                # Para grafos no dirigidos
-                spanning_tree = nx.minimum_spanning_tree(temp_G)
-                edges_to_remove = set(temp_G.edges()) - set(spanning_tree.edges())
-                self.G.remove_edges_from(edges_to_remove)
-        else:
-            if self.G.is_directed():
-                # Para grafos dirigidos
-                cycle_edges = list(nx.find_cycle(self.G, orientation='original'))
-                while cycle_edges:
-                    edge_to_remove = random.choice(cycle_edges)
-                    self.G.remove_edge(*edge_to_remove)
-                    try:
-                        cycle_edges = list(nx.find_cycle(self.G, orientation='original'))
-                    except nx.NetworkXNoCycle:
-                        break
-            else:
-                # Para grafos no dirigidos
-                spanning_tree = nx.minimum_spanning_tree(self.G)
-                self.G = spanning_tree
+    #         if temp_G.is_directed():
+    #             # Para grafos dirigidos
+    #             cycle_edges = list(nx.find_cycle(temp_G, orientation='original'))
+    #             while cycle_edges:
+    #                 edge_to_remove = random.choice(cycle_edges)
+    #                 self.G.remove_edge(*edge_to_remove)
+    #                 temp_G.remove_edge(*edge_to_remove)
+    #                 try:
+    #                     cycle_edges = list(nx.find_cycle(temp_G, orientation='original'))
+    #                 except nx.NetworkXNoCycle:
+    #                     break
+    #         else:
+    #             # Para grafos no dirigidos
+    #             spanning_tree = nx.minimum_spanning_tree(temp_G)
+    #             edges_to_remove = set(temp_G.edges()) - set(spanning_tree.edges())
+    #             self.G.remove_edges_from(edges_to_remove)
+    #     else:
+    #         if self.G.is_directed():
+    #             # Para grafos dirigidos
+    #             cycle_edges = list(nx.find_cycle(self.G, orientation='original'))
+    #             while cycle_edges:
+    #                 edge_to_remove = random.choice(cycle_edges)
+    #                 self.G.remove_edge(*edge_to_remove)
+    #                 try:
+    #                     cycle_edges = list(nx.find_cycle(self.G, orientation='original'))
+    #                 except nx.NetworkXNoCycle:
+    #                     break
+    #         else:
+    #             # Para grafos no dirigidos
+    #             spanning_tree = nx.minimum_spanning_tree(self.G)
+    #             self.G = spanning_tree
 
-    def adjust_radius_diameter(self, target_radius, target_diameter, is_acyclic):
-        while True:
-            current_radius = nx.radius(self.G)
-            current_diameter = nx.diameter(self.G)
+    # def adjust_radius_diameter(self, target_radius, target_diameter, is_acyclic):
+    #     while True:
+    #         current_radius = nx.radius(self.G)
+    #         current_diameter = nx.diameter(self.G)
             
-            if (target_radius == -1 or current_radius == target_radius) and \
-               (target_diameter == -1 or current_diameter == target_diameter):
-                break
+    #         if (target_radius == -1 or current_radius == target_radius) and \
+    #            (target_diameter == -1 or current_diameter == target_diameter):
+    #             break
             
-            if current_radius < target_radius or current_diameter < target_diameter:
-                # Necesitamos aumentar el radio o el diámetro
-                u, v = self.find_distant_nodes()
-                if not self.G.has_edge(u, v):
-                    if not is_acyclic or not self.will_create_cycle(u, v):
-                        self.G.add_edge(u, v)
-            else:
-                # Necesitamos disminuir el radio o el diámetro
-                edges = list(self.G.edges())
-                if edges:
-                    u, v = random.choice(edges)
-                    if nx.number_of_edges(self.G) > nx.number_of_nodes(self.G) - 1:
-                        self.G.remove_edge(u, v)
+    #         if current_radius < target_radius or current_diameter < target_diameter:
+    #             # Necesitamos aumentar el radio o el diámetro
+    #             u, v = self.find_distant_nodes()
+    #             if not self.G.has_edge(u, v):
+    #                 if not is_acyclic or not self.will_create_cycle(u, v):
+    #                     self.G.add_edge(u, v)
+    #         else:
+    #             # Necesitamos disminuir el radio o el diámetro
+    #             edges = list(self.G.edges())
+    #             if edges:
+    #                 u, v = random.choice(edges)
+    #                 if nx.number_of_edges(self.G) > nx.number_of_nodes(self.G) - 1:
+    #                     self.G.remove_edge(u, v)
 
-    def find_distant_nodes(self):
-        # Encuentra dos nodos que estén a la mayor distancia posible
-        nodes = list(self.G.nodes())
-        u = random.choice(nodes)
-        distances = nx.single_source_shortest_path_length(self.G, u)
-        v = max(distances, key=distances.get)
-        return u, v
+    # def find_distant_nodes(self):
+    #     # Encuentra dos nodos que estén a la mayor distancia posible
+    #     nodes = list(self.G.nodes())
+    #     u = random.choice(nodes)
+    #     distances = nx.single_source_shortest_path_length(self.G, u)
+    #     v = max(distances, key=distances.get)
+    #     return u, v
 
-    def will_create_cycle(self, u, v):
-        # Verifica si añadir una arista entre u y v creará un ciclo
-        return nx.has_path(self.G, u, v)
-
+    # def will_create_cycle(self, u, v):
+    #     # Verifica si añadir una arista entre u y v creará un ciclo
+    #     return nx.has_path(self.G, u, v)
 
     def analyze_information_distribution(self):
         if self.G is None:
@@ -291,7 +282,7 @@ class ComplexNetworkAnalyzer:
         degree_sequence = [d for n, d in self.G.degree()]
         fig, ax = plt.subplots(figsize=self.visual_size)
         ax.hist(degree_sequence, bins=50, edgecolor='black')
-        ax.set_title("Distribución de grado en grafo de 5000 nodos")
+        ax.set_title("Distribución de grado en grafo")
         ax.set_xlabel("Grado")
         ax.set_ylabel("Frecuencia")
         
@@ -443,6 +434,31 @@ class ComplexNetworkAnalyzer:
         if self.G is None:
             return "Grafo no generado aún"
 
+        if not nx.is_connected(self.G):
+            return "El grafo no es conexo, no se puede calcular el camino de costo máximo global"
+
+        def modified_bellman_ford(G, source, target):
+            dist = {node: float('-inf') for node in G}
+            pred = {node: None for node in G}
+            dist[source] = 0
+
+            for _ in range(len(G) - 1):
+                for u, v, data in G.edges(data=True):
+                    weight = data.get('weight', 1)
+                    if dist[u] + weight > dist[v]:
+                        dist[v] = dist[u] + weight
+                        pred[v] = u
+
+            # Reconstruir el camino
+            path = []
+            current = target
+            while current is not None:
+                path.append(current)
+                current = pred[current]
+            path.reverse()
+
+            return path, dist[target]
+
         max_cost = float('-inf')
         max_path = None
         iterations = 0
@@ -453,14 +469,10 @@ class ComplexNetworkAnalyzer:
             start = random.choice(nodes)
             end = random.choice(nodes)
             if start != end:
-                try:
-                    for path in nx.all_simple_paths(self.G, start, end):
-                        cost = sum(self.G[path[i]][path[i+1]].get('weight', 1) for i in range(len(path)-1))
-                        if cost > max_cost:
-                            max_cost = cost
-                            max_path = path
-                except nx.NetworkXNoPath:
-                    pass
+                path, cost = modified_bellman_ford(self.G, start, end)
+                if cost > max_cost:
+                    max_cost = cost
+                    max_path = path
             iterations += 1
 
         if max_path is None:
@@ -574,7 +586,7 @@ class ComplexNetworkAnalyzer:
                     queue.append((next_node, path + [next_node]))
         
         return None
-    
+    ##
     def assortativity(self):
         if self.G is None:
             return "Grafo no generado aún"
@@ -677,7 +689,7 @@ class ComplexNetworkAnalyzer:
         plt.show()
         
         return degree_prob
-
+##
     def average_neighbor_degree(self):
         if self.G is None:
             return "Grafo no generado aún"
@@ -913,28 +925,28 @@ class ComplexNetworkAnalyzer:
 
         return flow_value, flow_graph
 
-    def visualize_flow(self, flow_graph, source, sink):
-        plt.figure(figsize=(40, 40))
-        pos = nx.spring_layout(flow_graph, k=3, iterations=50)
+    # def visualize_flow(self, flow_graph, source, sink):
+    #     plt.figure(figsize=(40, 40))
+    #     pos = nx.spring_layout(flow_graph, k=3, iterations=50)
         
-        nx.draw(flow_graph, pos, node_size=3000, node_color='lightpink', with_labels=False, arrows=True, arrowsize=40)
+    #     nx.draw(flow_graph, pos, node_size=3000, node_color='lightpink', with_labels=False, arrows=True, arrowsize=40)
 
-        labels = {node: flow_graph.nodes[node].get('label', str(node)) for node in flow_graph.nodes()}
-        nx.draw_networkx_labels(flow_graph, pos, labels, font_size=24, font_weight='bold')
+    #     labels = {node: flow_graph.nodes[node].get('label', str(node)) for node in flow_graph.nodes()}
+    #     nx.draw_networkx_labels(flow_graph, pos, labels, font_size=24, font_weight='bold')
 
-        edge_labels = {}
-        for u, v, data in flow_graph.edges(data=True):
-            flow = data.get('flow', 0)
-            capacity = data['capacity']
-            edge_labels[(u, v)] = f"{flow}/{capacity}"
+    #     edge_labels = {}
+    #     for u, v, data in flow_graph.edges(data=True):
+    #         flow = data.get('flow', 0)
+    #         capacity = data['capacity']
+    #         edge_labels[(u, v)] = f"{flow}/{capacity}"
 
-        nx.draw_networkx_edge_labels(flow_graph, pos, edge_labels=edge_labels, font_size=20)
+    #     nx.draw_networkx_edge_labels(flow_graph, pos, edge_labels=edge_labels, font_size=20)
 
-        # Resalta el origen y el sumidero
-        nx.draw_networkx_nodes(flow_graph, pos, nodelist=[source], node_color='lightgreen', node_size=3500)
-        nx.draw_networkx_nodes(flow_graph, pos, nodelist=[sink], node_color='lightblue', node_size=3500)
+    #     # Resalta el origen y el sumidero
+    #     nx.draw_networkx_nodes(flow_graph, pos, nodelist=[source], node_color='lightgreen', node_size=3500)
+    #     nx.draw_networkx_nodes(flow_graph, pos, nodelist=[sink], node_color='lightblue', node_size=3500)
 
-        plt.title("Red de Flujo Máximo", fontsize=80)
-        plt.axis('off')
-        plt.tight_layout()
-        plt.show()
+    #     plt.title("Red de Flujo Máximo", fontsize=80)
+    #     plt.axis('off')
+    #     plt.tight_layout()
+    #     plt.show()

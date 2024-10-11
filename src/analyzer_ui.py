@@ -12,9 +12,13 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
 
+from src.simulation_ui import SimulationInputWindow
+
 from collections import deque
 
 from src.analyzer import ComplexNetworkAnalyzer
+
+from src.cache import Cache
 
 class NetworkAnalyzerGUI:
     
@@ -24,6 +28,7 @@ class NetworkAnalyzerGUI:
         self.master = master
         self.master.title("Complex Network Analyzer")
         self.analyzer = ComplexNetworkAnalyzer()
+        self.cache = Cache() 
 
         # Configurar el grid del master
         master.columnconfigure(0, weight=1)
@@ -170,18 +175,138 @@ class NetworkAnalyzerGUI:
 
         #region analisis
 
-        ttk.Button(self.analysis_frame, text="Distribución de Información", command=self.analyze_information_distribution).grid(row=0, column=0)
-        ttk.Button(self.analysis_frame, text="Calcular Centralidad", command=self.calculate_centrality).grid(row=0, column=1)
+        self.analysis_dict = {
+            "Distribución de Información": "analyze_information_distribution",
+            "Centralidad de grado": "calculate_centrality",
+            "Camino más largo entre dos nodos": "longest_path",
+            "Camino más cort entre dos nodos": "shortest_path",
+            "Camino de costo mínimo": "shortest_weighted_path",
+            "Coeficiente de agrupamiento": "clustering_coefficient",
+            "Camino más corto promedio": "average_shortest_path",
+            "Centralidad de intermediación": "betweenness_centrality",
+            "Calcular Diámetro": "calculate_diameter",
+            "Calcular Radio": "calculate_radius",
+            "Camino de costo máximo": "find_max_cost_path",
+            "Camino de costo mínimo global": "find_global_min_cost_path",
+            "Camino de costo máximo global": "find_global_max_cost_path",
+            "Centralidad de autovector": "eigenvector_centrality",
+            "Detección de comunidades": "community_detection",
+            "Coeficiente de mundo pequeño": "small_world_coefficient",
+            "Prueba de libre escala": "scale_free_test",
+            "Detección de puentes": "bridge_detection",
+            "Puntos de articulación": "articulation_points",
+            "Coeficiente de club rico": "rich_club_coefficient",
+            "Distribución de grado": "degree_distribution",
+            "Grado promedio de vecinos": "average_neighbor_degree",
+            "Número de núcleo": "core_number",
+            "Número de clique aproximado": "approximate_clique_number",
+            "Eficiencia global": "global_efficiency",
+            "Eficiencia local": "local_efficiency",
+            "Brecha espectral": "spectral_gap",
+            "Coeficiente de correlación de Pearson de grado": "degree_pearson_correlation_coefficient",
+            "Centralidad de PageRank": "pagerank_centrality",
+            "Centralidad de Katz": "katz_centrality",
+            "Camino más corto en DAG": "shortest_path_dag",
+            "Ordenamiento topológico": "topological_sort",
+            "Contar caminos": "count_paths",
+            "Reducción transitiva": "transitive_reduction",
+            "Flujo máximo": "max_flow",
+            "Diámetro del bosque": "diameter_of_forest",
+            "Centros del bosque": "centers_of_forest",
+            "Centroides del bosque": "centroids_of_forest",
+            "Conteo de hojas del bosque": "leaves_count_of_forest",
+            "Alturas del bosque": "heights_of_forest"
+        }
 
-        ttk.Button(self.analysis_frame, text="Camino más largo", command=self.show_longest_path).grid(row=1, column=0)
-        ttk.Button(self.analysis_frame, text="Camino más corto", command=self.show_shortest_path).grid(row=1, column=1)
-        ttk.Button(self.analysis_frame, text="Camino de costo mínimo", command=self.show_shortest_weighted_path).grid(row=2, column=0)
-        ttk.Button(self.analysis_frame, text="Coeficiente de agrupamiento", command=self.show_clustering_coefficient).grid(row=2, column=1)
-        ttk.Button(self.analysis_frame, text="Camino más corto promedio", command=self.show_average_shortest_path).grid(row=3, column=0)
-        ttk.Button(self.analysis_frame, text="Centralidad de intermediación", command=self.show_betweenness_centrality).grid(row=3, column=1)
-        #endregion
+        self.analysis_frame = ttk.LabelFrame(master, text="Análisis del Grafo")
+        self.analysis_frame.grid(row=2, column=0, padx=10, pady=10, sticky="nsew")
 
+        self.analysis_var = tk.StringVar()
+        self.analysis_dropdown = ttk.Combobox(self.analysis_frame, textvariable=self.analysis_var, state="readonly", width=40)
+        self.analysis_dropdown.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+
+        ttk.Button(self.analysis_frame, text="Realizar Análisis", command=self.perform_analysis).grid(row=0, column=1, padx=5, pady=5)
+        ttk.Button(self.analysis_frame, text="Realizar Simulacion", command=self.perform_simulation).grid(row=1, column=0, padx=5, pady=5)
+
+        # Configurar el grid para que el dropdown se expanda horizontalmente
+        self.analysis_frame.columnconfigure(0, weight=1)
+        self.analysis_frame.columnconfigure(1, weight=0)
+        
         self.canvas = None
+
+    def perform_simulation(self):
+        if self.analyzer.G is None:
+            messagebox.showerror("Error", "Grafo no generado aún.")
+        else:
+            SimulationInputWindow(self.master, self.analyzer.G, self.analyzer.pos)
+
+
+    def update_analysis_options(self):
+        graph_type = self.graph_type.get()
+        is_directed = self.additional_options["is_directed"].get()
+        is_weighted = self.additional_options["is_weighted"].get()
+        is_acyclic = self.additional_options["is_acyclic"].get()
+
+        available_analyses = []
+
+        # Añadir análisis básicos disponibles para todos los tipos de grafos
+        basic_analyses = [
+            "Distribución de Información", "Centralidad de grado", "Coeficiente de agrupamiento",
+            "Centralidad de intermediación", "Centralidad de autovector", "Detección de comunidades",
+            "Detección de puentes", "Puntos de articulación", "Coeficiente de club rico",
+            "Distribución de grado", "Grado promedio de vecinos", "Número de núcleo",
+            "Número de clique aproximado", "Eficiencia global", "Eficiencia local",
+            "Brecha espectral", "Coeficiente de correlación de Pearson de grado",
+            "Centralidad de PageRank", "Centralidad de Katz"
+        ]
+        available_analyses.extend(basic_analyses)
+
+        # Añadir análisis específicos según el tipo de grafo y sus propiedades
+        if graph_type != "Pseudografo":
+            available_analyses.extend([
+                "Calcular Diámetro", "Calcular Radio", "Camino más corto promedio",
+                "Coeficiente de mundo pequeño", "Prueba de libre escala"
+            ])
+
+        if is_weighted:
+            available_analyses.extend([
+                "Camino de costo mínimo", "Camino de costo máximo",
+                "Camino de costo mínimo global", "Camino de costo máximo global"
+            ])
+        else:
+            available_analyses.extend(["Camino más corto entre dos nodos", "Camino más largo entre dos nodos"])
+
+        if graph_type == "Red de flujo":
+            available_analyses.append("Flujo máximo")
+
+        if is_acyclic and is_directed:
+            available_analyses.extend([
+                "Camino más corto en DAG", "Ordenamiento topológico",
+                "Contar caminos", "Reducción transitiva"
+            ])
+
+        if not is_directed and is_acyclic:
+            available_analyses.extend([
+                "Diámetro del bosque", "Centros del bosque", "Centroides del bosque",
+                "Conteo de hojas del bosque", "Alturas del bosque"
+            ])
+
+        self.analysis_dropdown['values'] = available_analyses
+
+    def perform_analysis(self):
+        selected_analysis = self.analysis_var.get()
+        if selected_analysis in self.analysis_dict:
+            method_name = f"show_{self.analysis_dict[selected_analysis]}"
+            if hasattr(self, method_name):
+                method = getattr(self, method_name)
+                method()
+            else:
+                print(f"Método {method_name} no implementado aún")
+        else:
+            print("Análisis no reconocido")
+
+    #endregion
+
     
     def show_visualization_options(self):
         options_window = tk.Toplevel(self.master)
@@ -591,10 +716,29 @@ class NetworkAnalyzerGUI:
         is_directed = self.additional_options["is_directed"].get()
         is_weighted = self.additional_options["is_weighted"].get()
         is_acyclic = self.additional_options["is_acyclic"].get()
+        decimal_places = self.additional_options["decimal_places"].get()
+        specific_weight_range = self.additional_options["weight_range"]
+        rational = False
+
+        if graph_type != "Red de flujo" and is_weighted:
+            rational =  True if self.additional_options["weight_type"].get() == "Racional" else False
+            if not rational and not specific_weight_range:
+                self.min_weight.set(10)
+                self.max_weight.set(30)
+        elif graph_type == "Red de flujo":
+            rational = True if self.additional_options["capacity_type"].get() else False
+            if rational and not specific_weight_range:
+                self.min_capacity.set(0.1)
+                self.max_capacity.set(1.0)
+
         num_nodes = self.num_nodes.get()
         edge_probability = self.edge_prob.get()
 
-        self.analyzer.generate_graph(graph_type, is_directed, is_weighted, is_acyclic, num_nodes, edge_probability)
+        if(is_weighted):
+            self.node_weight_see.grid(row=17, column=0)
+            self.two_nodes_weight_see.grid(row=17, column=1)
+
+        self.analyzer.generate_graph(graph_type, is_directed, is_weighted, is_acyclic, num_nodes, edge_probability, self.min_weight.get(), self.max_weight.get(), self.min_capacity.get(), self.max_capacity.get(), decimal_places, specific_weight_range, rational)
 
         self.show_graph()
     
@@ -647,8 +791,10 @@ class NetworkAnalyzerGUI:
             messagebox.showinfo("Información", 
                                 f"Se ha creado un grafo inducido con los nodos {', '.join(map(str, valid_nodes))} exitosamente.")
 
-#Funciones auxiliares
-    def visualize_graph(self, graph, pos):
+    #Funciones auxiliares
+    def visualize_graph(self, graph, pos, should_return=False):
+        self.update_analysis_options()
+
         # Limpiar el frame de visualización
         for widget in self.plot_frame.winfo_children():
             widget.destroy()
@@ -680,6 +826,8 @@ class NetworkAnalyzerGUI:
 
         # Configurar eventos de zoom y pan
         self.setup_zoom_pan_events()
+        if should_return:
+            return canvas, fig, ax
 
     def draw_graph(self, graph, pos, ax):
         self.draw_edges(graph, pos, ax)
@@ -692,6 +840,8 @@ class NetworkAnalyzerGUI:
             all_edges = graph.edges(keys=True, data=True)
         else:
             all_edges = graph.edges(data=True)
+            if self.graph_type.get() != "Grafo":
+                self.graph_type.set("Grafo")
 
         edge_counts = {}
         rads = []
@@ -784,7 +934,7 @@ class NetworkAnalyzerGUI:
         key = (u, v) if u <= v else (v, u)
         if key in edge_counts:
             count = edge_counts[key]
-            rad = 0.075 * count
+            rad = 0.1 * count
             rad *= (-1) ** count
         else:
             rad = 0
@@ -808,13 +958,12 @@ class NetworkAnalyzerGUI:
         self.pressed = False
         self.start_pan = None
   
-    def show_graph(self):
-        if self.analyzer.G is None:
-            messagebox.showinfo("Error", "Aún no se ha creado el grafo.")
-            return
-
-        # Obtener el grafo del analizador
-        G = self.analyzer.G
+    def show_graph(self, G=None):
+        if G is None:
+            if self.analyzer.G is None:
+                messagebox.showinfo("Error", "Aún no se ha creado el grafo.")
+                return
+            G = self.analyzer.G
 
         # Definir los layouts disponibles
         layouts = {
@@ -1203,61 +1352,98 @@ class NetworkAnalyzerGUI:
 
     #Show Analisis
 
-    def show_betweenness_centrality(self):
-        betweenness = self.analyzer.betweenness_centrality()
-        top_20 = dict(sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:20])
-
-        subgraph = self.analyzer.G.subgraph(top_20.keys())
-
-        fig, ax = plt.subplots(figsize=self.visual_size)
-        pos = nx.spring_layout(subgraph)
-
-        nx.draw_networkx_edges(subgraph, pos, ax=ax, alpha=0.2)
-        nx.draw_networkx_nodes(subgraph, pos, ax=ax, node_size=600, node_color='lightblue')
-        nx.draw_networkx_labels(subgraph, pos, ax=ax, font_size=8, font_weight="bold")
-
-        label_pos = {k: (v[0], v[1]+0.05) for k, v in pos.items()}
-        nx.draw_networkx_labels(subgraph, label_pos, 
-                                {k: f"{v:.3f}" for k, v in top_20.items()}, 
-                                font_size=6, ax=ax)
-
-        ax.set_title("Top 20 nodos por centralidad de intermediación")
-        ax.axis('off')
-        self.show_plot(fig)
-
-    def analyze_information_distribution(self):
-        result = self.analyzer.analyze_information_distribution()
-        if isinstance(result, str):
-            messagebox.showinfo("Error", result)
+    def show_betweenness_centrality(self):    
+        function_name = "show_betweenness_centrality";    
+        if self.cache.has_cache(function_name, self.analyzer.G):
+            self.fig = self.cache.get_cache(function_name)
+            self.canvas.figure = self.fig
+            self.canvas.draw()
         else:
+            betweenness = self.analyzer.betweenness_centrality()
+            top_20 = dict(sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:20])
+
+            subgraph = self.analyzer.G.subgraph(top_20.keys())
+            pos = nx.spring_layout(subgraph)
+
+            self.visualize_graph(subgraph, pos)
+            
+            # Agregar etiquetas de centralidad
+            label_pos = {k: (v[0], v[1]+0.03) for k, v in pos.items()}
+            for node, (x, y) in label_pos.items():
+                self.ax.text(x, y, f"{top_20[node]:.3f}", fontsize=6, ha='center', va='center')
+
+            self.ax.set_title("Top 20 nodos por centralidad de intermediación", loc='center')
+            self.canvas.draw()
+            
+            self.cache.save_to_cache(function_name, self.analyzer.G, self.fig)
+
+        messagebox.showinfo("Centralidad de Intermediación", f"Subgrafo inducido con top 20 nodos de mayor valor.")
+
+    def show_analyze_information_distribution(self):
+        function_name = "show_analyze_information_distribution";  
+        result = self.analyzer.analyze_information_distribution()
+
+        if self.cache.has_cache(function_name, self.analyzer.G):
+            self.fig = self.cache.get_cache(function_name)
+            # self.canvas.figure = self.fig
+            # self.canvas.draw()
+            
+            # Limpiar el frame de visualización
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+            
+            # Crear un canvas de Matplotlib
+            canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+            
             fig, avg_degree = result
-            self.show_plot(fig)
-            messagebox.showinfo("Grado Promedio", f"Grado promedio: {avg_degree:.2f}")
 
-    def calculate_centrality(self):
-        centrality = self.analyzer.calculate_centrality()
-        top_20 = dict(sorted(centrality.items(), key=lambda x: x[1], reverse=True)[:20])
-        
-        subgraph = self.analyzer.G.subgraph(top_20.keys())
+        else:
+            if isinstance(result, str):
+                messagebox.showinfo("Error", result)
+            else:
+                fig, avg_degree = result
+                
+                # Limpiar el frame de visualización
+                for widget in self.plot_frame.winfo_children():
+                    widget.destroy()
 
-        fig, ax = plt.subplots(figsize=self.visual_size)
-        pos = nx.spring_layout(subgraph)
+                # Crear un canvas de Matplotlib
+                canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+                canvas.draw()
+                canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+                self.cache.save_to_cache(function_name, self.analyzer.G, fig)
 
-        nx.draw_networkx_edges(subgraph, pos, ax=ax, alpha=0.2)
-        nx.draw_networkx_nodes(subgraph, pos, ax=ax, node_size=800, node_color='lightblue')
-        nx.draw_networkx_labels(subgraph, pos, ax=ax, font_size=8, font_weight="bold")
 
-        label_pos = {k: (v[0], v[1]+0.05) for k, v in pos.items()}
-        nx.draw_networkx_labels(subgraph, label_pos, 
-                                {k: f"{v:.3f}" for k, v in top_20.items()}, 
-                                font_size=6, ax=ax)
+        messagebox.showinfo("Grado Promedio", f"Grado promedio: {avg_degree:.2f}")
 
-        ax.set_title("Subgrafo con Top 20 nodos por centralidad de grado")
-        ax.axis('off')
-        plt.tight_layout()
-        
-        self.show_plot(fig)
-    
+    def show_calculate_centrality(self):
+        function_name = "show_calculate_centrality";    
+        if self.cache.has_cache(function_name, self.analyzer.G):
+            self.fig = self.cache.get_cache(function_name)
+            self.canvas.figure = self.fig
+            self.canvas.draw()
+        else:
+            centrality = self.analyzer.calculate_centrality()
+            top_20 = dict(sorted(centrality.items(), key=lambda x: x[1], reverse=True)[:20])
+
+            subgraph = self.analyzer.G.subgraph(top_20.keys())
+            pos = nx.spring_layout(subgraph)
+
+            self.visualize_graph(subgraph, pos)
+
+            # Agregar etiquetas de centralidad
+            label_pos = {k: (v[0], v[1]+0.03) for k, v in pos.items()}
+            for node, (x, y) in label_pos.items():
+                self.ax.text(x, y, f"{top_20[node]:.3f}", fontsize=6, ha='center', va='center')
+
+            self.ax.set_title("Subgrafo con Top 20 nodos por centralidad de grado")
+            self.canvas.draw()
+            self.cache.save_to_cache(function_name, self.analyzer.G, self.fig)
+
+        messagebox.showinfo("Centralidad de Grado", f"Subgrafo inducido con top 20 nodos de mayor valor.")
+
     def show_longest_path(self):
         class PathDialog(simpledialog.Dialog):
             def body(self, master):
@@ -1288,7 +1474,7 @@ class NetworkAnalyzerGUI:
                     self.end = None
                     self.max_iterations = None
                     self.time_limit = None
-
+    
         dialog = PathDialog(self.master, title="Ingrese los parámetros")
         if all(v is not None for v in [dialog.start, dialog.end, dialog.max_iterations, dialog.time_limit]):
             start, end = dialog.start, dialog.end
@@ -1299,51 +1485,14 @@ class NetworkAnalyzerGUI:
                 message, longest_path, path_length = result
 
                 if isinstance(longest_path, list) and longest_path:
-                    # Visualizar el camino
                     path_edges = list(zip(longest_path, longest_path[1:]))
                     subgraph = self.analyzer.G.edge_subgraph(path_edges)
-
-                    fig = Figure(figsize=self.visual_size, dpi=100)
-                    ax = fig.add_subplot(111)
                     pos = nx.spring_layout(subgraph, k=1.5)
-                    nx.draw(subgraph, pos, ax=ax, with_labels=True, node_color='lightblue', 
-                            node_size=500, font_size=8, font_weight='bold')
-                    edge_labels = nx.get_edge_attributes(subgraph, 'weight')
-                    nx.draw_networkx_edge_labels(subgraph, pos, edge_labels=edge_labels, ax=ax, font_size=6)
-                    ax.set_title(f"Camino más largo de {start} a {end}", fontsize=16)
-                    ax.axis('off')
-                    fig.tight_layout()
 
-                    # Limpiar el frame de visualización
-                    for widget in self.plot_frame.winfo_children():
-                        widget.destroy()
+                    self.visualize_graph(subgraph, pos)
 
-                    # Crear un canvas de Matplotlib
-                    canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
-                    canvas.draw()
-
-                    # Empaquetar el canvas directamente en plot_frame
-                    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
-                    # Añadir botones de zoom
-                    zoom_frame = ttk.Frame(self.plot_frame)
-                    zoom_frame.pack(side=tk.BOTTOM, fill=tk.X)
-                    ttk.Button(zoom_frame, text="Zoom Out", command=lambda: self.zoom(1.2)).pack(side=tk.LEFT)
-                    ttk.Button(zoom_frame, text="Zoom In", command=lambda: self.zoom(0.8)).pack(side=tk.LEFT)
-
-                    # Guardar referencias
-                    self.canvas = canvas
-                    self.fig = fig
-                    self.ax = ax
-
-                    # Configurar eventos de zoom y pan
-                    self.canvas.mpl_connect('scroll_event', self.on_scroll)
-                    self.canvas.mpl_connect('button_press_event', self.on_press)
-                    self.canvas.mpl_connect('button_release_event', self.on_release)
-                    self.canvas.mpl_connect('motion_notify_event', self.on_motion)
-
-                    self.pressed = False
-                    self.start_pan = None
+                    self.ax.set_title(f"Camino más largo de {start} a {end}", fontsize=16)
+                    self.canvas.draw()
 
                     messagebox.showinfo("Camino más largo", message)
                 else:
@@ -1371,19 +1520,21 @@ class NetworkAnalyzerGUI:
         dialog = PathDialog(self.master, title="Ingrese los nodos")
         if dialog.start is not None and dialog.end is not None:
             start, end = dialog.start, dialog.end
-            shortest_path = self.analyzer.find_shortest_path(start, end)
+            if dialog.start == dialog.end:
+                pos = nx.spring_layout(subgraph)
+                subgraph = self.analyzer.G.subgraph(dialog.start)
+                self.visualize_graph(subgraph, pos)
+            else:
+                shortest_path = self.analyzer.find_shortest_path(start, end)
             if isinstance(shortest_path, list):
                 path_edges = list(zip(shortest_path, shortest_path[1:]))
                 subgraph = self.analyzer.G.edge_subgraph(path_edges)
-
-                fig, ax = plt.subplots(figsize=self.visual_size)
                 pos = nx.spring_layout(subgraph)
-                nx.draw(subgraph, pos, ax=ax, with_labels=True, node_color='lightblue', node_size=500, font_size=10, font_weight='bold')
-                edge_labels = nx.get_edge_attributes(subgraph, 'weight')
-                nx.draw_networkx_edge_labels(subgraph, pos, edge_labels=edge_labels, ax=ax)
-                ax.set_title(f"Camino más corto de {start} a {end}")
-                ax.axis('off')
-                self.show_plot(fig)
+
+                self.visualize_graph(subgraph, pos)
+
+                self.ax.set_title(f"Camino más corto de {start} a {end}")
+                self.canvas.draw()
 
                 messagebox.showinfo("Camino más corto", f"Camino más corto de {start} a {end}: {shortest_path}")
             else:
@@ -1420,15 +1571,12 @@ class NetworkAnalyzerGUI:
                 path, cost = result
                 path_edges = list(zip(path, path[1:]))
                 subgraph = self.analyzer.G.edge_subgraph(path_edges)
-
-                fig, ax = plt.subplots(figsize=self.visual_size)
                 pos = nx.spring_layout(subgraph)
-                nx.draw(subgraph, pos, ax=ax, with_labels=True, node_color='lightblue', node_size=500, font_size=10, font_weight='bold')
-                edge_labels = nx.get_edge_attributes(subgraph, 'weight')
-                nx.draw_networkx_edge_labels(subgraph, pos, edge_labels=edge_labels, ax=ax)
-                ax.set_title(f"Camino de costo mínimo de {start} a {end}")
-                ax.axis('off')
-                self.show_plot(fig)
+
+                self.visualize_graph(subgraph, pos)
+
+                self.ax.set_title(f"Camino de costo mínimo de {start} a {end}")
+                self.canvas.draw()
 
                 messagebox.showinfo("Camino ponderado más corto", 
                                     f"Camino menos costoso de {start} a {end}: {', '.join(map(str, path))}\n"
@@ -1437,16 +1585,34 @@ class NetworkAnalyzerGUI:
                 messagebox.showinfo("Camino de costo mínimo", str(result))
         else:
             messagebox.showinfo("Error", "Entrada inválida. Por favor, ingrese números enteros para los nodos.")
-        
-    def show_clustering_coefficient(self):
-        local_clustering, average_clustering = self.analyzer.clustering_coefficient()
 
-        fig, ax = plt.subplots(figsize=self.visual_size)
-        ax.hist(list(local_clustering.values()), bins=50, edgecolor='black')
-        ax.set_title("Distribución del coeficiente de agrupamiento local")
-        ax.set_xlabel("Coeficiente de agrupamiento")
-        ax.set_ylabel("Frecuencia")
-        self.show_plot(fig)
+    def show_clustering_coefficient(self):
+        function_name = "show_clustering_coefficient";    
+        if self.cache.has_cache(function_name, self.analyzer.G):
+            local_clustering, average_clustering = self.analyzer.clustering_coefficient()
+            self.fig = self.cache.get_cache(function_name)
+            self.canvas.figure = self.fig
+            self.canvas.draw()
+        else:
+            local_clustering, average_clustering = self.analyzer.clustering_coefficient()
+
+            # Limpiar el frame de visualización
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+
+            fig, ax = plt.subplots(figsize=(5, 4))
+            ax.hist(list(local_clustering.values()), bins=50, edgecolor='black')
+            ax.set_title("Distribución del coeficiente de agrupamiento local")
+            ax.set_xlabel("Coeficiente de agrupamiento")
+            ax.set_ylabel("Frecuencia")
+            self.fig = fig
+            self.ax = ax
+
+            canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+            self.cache.save_to_cache(function_name, self.analyzer.G, self.fig)
+
 
         messagebox.showinfo("Coeficiente de agrupamiento", f"Coeficiente de agrupamiento promedio: {average_clustering:.4f}")
 
@@ -1462,3 +1628,277 @@ class NetworkAnalyzerGUI:
             messagebox.showinfo("Error", result)
         else:
             messagebox.showinfo("Camino más corto promedio", f"Longitud promedio del camino más corto (en componentes conexas): {result:.4f}")
+
+    def show_calculate_diameter(self):
+        if nx.is_connected(self.analyzer.G): 
+            function_name = "show_calculate_diameter";    
+            result = self.analyzer.calculate_diameter()
+
+            if self.cache.has_cache(function_name, self.analyzer.G):
+                self.fig = self.cache.get_cache(function_name)
+                self.canvas.figure = self.fig
+                self.canvas.draw()    
+            else:
+                # Encontrar un camino de longitud igual al diámetro
+                for u in self.analyzer.G.nodes():
+                    for v in self.analyzer.G.nodes():
+                        if nx.shortest_path_length(self.analyzer.G, u, v) == result:
+                            path = nx.shortest_path(self.analyzer.G, u, v)
+                            break
+                    if 'path' in locals():
+                        break
+                
+                subgraph = self.analyzer.G.subgraph(path)
+                pos = nx.spring_layout(subgraph)
+                self.visualize_graph(subgraph, pos)
+                
+                # Resaltar el camino del diámetro
+                nx.draw_networkx_edges(subgraph, pos, ax=self.ax, edgelist=list(zip(path[:-1], path[1:])), 
+                                    edge_color='r', width=2)
+                
+                self.ax.set_title(f"Diámetro del Grafo: {result}", loc='center')
+                self.canvas.draw()
+                self.cache.save_to_cache(function_name, self.analyzer.G, self.fig)
+
+            messagebox.showinfo("Diámetro del Grafo", f"El diámetro del grafo es: {result}")
+        else:
+            messagebox.showerror("Grafo no conexo", "El diámetro no está definido.")
+
+    def show_calculate_radius(self):
+        if nx.is_connected(self.analyzer.G):
+            result = self.analyzer.calculate_radius()
+            # Encontrar un nodo central (con excentricidad igual al radio)
+            central_node = next(n for n in self.analyzer.G.nodes() 
+                                if max(nx.shortest_path_length(self.analyzer.G, n).values()) == result)
+            
+            # Obtener todos los nodos a distancia 'radio' del nodo central
+            nodes_at_radius = [n for n in self.analyzer.G.nodes() 
+                            if nx.shortest_path_length(self.analyzer.G, central_node, n) == result]
+            
+            # Obtener todos los nodos y aristas en los caminos más cortos
+            all_nodes = set([central_node])
+            all_edges = []
+            for node in nodes_at_radius:
+                path = nx.shortest_path(self.analyzer.G, central_node, node)
+                all_nodes.update(path)
+                all_edges.extend(list(zip(path[:-1], path[1:])))
+            
+            function_name = "show_calculate_radius";    
+            if self.cache.has_cache(function_name, self.analyzer.G):
+                self.fig = self.cache.get_cache(function_name)
+                self.canvas.figure = self.fig
+                self.canvas.draw()
+            else:            
+                subgraph = self.analyzer.G.subgraph(all_nodes)
+                pos = nx.spring_layout(subgraph)
+                self.visualize_graph(subgraph, pos)
+                
+                # Eliminar todas las aristas existentes
+                self.ax.clear()
+                
+                # Dibujar todas las aristas en los caminos
+                nx.draw_networkx_edges(subgraph, pos, ax=self.ax, edgelist=all_edges, edge_color='b', width=1.5)
+                
+                # Dibujar todos los nodos
+                nx.draw_networkx_nodes(subgraph, pos, ax=self.ax, node_color='lightblue', node_size=300)
+                
+                # Resaltar el nodo central y los nodos a distancia 'radio'
+                nx.draw_networkx_nodes(subgraph, pos, ax=self.ax, nodelist=[central_node], 
+                                    node_color='r', node_size=500)
+                nx.draw_networkx_nodes(subgraph, pos, ax=self.ax, nodelist=nodes_at_radius, 
+                                    node_color='g', node_size=300)
+                
+                # Añadir etiquetas a los nodos
+                labels = {central_node: f"Central\n{central_node}"}
+                labels.update({n: str(n) for n in subgraph.nodes() if n != central_node})
+                nx.draw_networkx_labels(subgraph, pos, labels, ax=self.ax, font_size=8)
+                
+                self.ax.set_title(f"Radio del Grafo: {result}", loc='center')
+                self.ax.axis('off')
+                self.canvas.draw()
+                self.cache.save_to_cache(function_name, self.analyzer.G, self.fig)
+                
+            # Preparar el mensaje explicativo
+            message = (f"El radio del grafo es: {result}\n\n"
+                    f"Nodo central: {central_node}\n"
+                    f"Nodos a distancia {result} del nodo central: {', '.join(map(str, nodes_at_radius))}\n"
+                    f"Nodos intermedios: {', '.join(map(str, all_nodes - set([central_node]) - set(nodes_at_radius)))}")
+            
+            messagebox.showinfo("Radio del Grafo", message)
+        else:
+            messagebox.showerror("Grafo no conexo", "El radio no está definido.")
+        
+    def show_find_global_min_cost_path(self):
+        class PathDialog(simpledialog.Dialog):
+            def body(self, master):
+                tk.Label(master, text="Máximo de iteraciones:").grid(row=0)
+                tk.Label(master, text="Tiempo límite (segundos):").grid(row=1)
+                self.e1 = tk.Entry(master)
+                self.e2 = tk.Entry(master)
+                self.e1.grid(row=0, column=1)
+                self.e2.grid(row=1, column=1)
+                self.e1.insert(0, "1000")  # valor por defecto
+                self.e2.insert(0, "10")    # valor por defecto
+                return self.e1  # initial focus
+
+            def apply(self):
+                try:
+                    self.max_iterations = int(self.e1.get())
+                    self.time_limit = float(self.e2.get())
+                except ValueError:
+                    self.max_iterations = None
+                    self.time_limit = None
+
+        dialog = PathDialog(self.master, title="Ingrese los parámetros")
+        if all(v is not None for v in [dialog.max_iterations, dialog.time_limit]):
+            result = self.analyzer.find_global_min_cost_path(dialog.max_iterations, dialog.time_limit)
+            
+            path_match = re.search(r'es \[([\d, ]+)\]', result)
+            cost_match = re.search(r'con costo ([\d.]+)', result)
+            
+            if path_match and cost_match:
+                path_str = path_match.group(1)
+                path = [int(node) for node in path_str.split(', ')]
+                cost = float(cost_match.group(1))
+                
+                path_edges = list(zip(path, path[1:]))
+                subgraph = self.analyzer.G.edge_subgraph(path_edges)
+                pos = nx.spring_layout(subgraph)
+
+                self.ax.clear()
+                self.visualize_graph(subgraph, pos)
+
+                nx.draw_networkx_edges(subgraph, pos, ax=self.ax, edgelist=path_edges, edge_color='blue', width=2)
+                
+                self.ax.set_title(f"Camino de Costo Mínimo Global: {cost}")
+                self.canvas.draw()
+
+                messagebox.showinfo("Camino de Costo Mínimo Global", 
+                                    f"Camino: {', '.join(map(str, path))}\n"
+                                    f"Costo total: {round(cost, 2)}")
+            else:
+                messagebox.showinfo("Resultado", result)
+        else:
+            messagebox.showinfo("Error", "Entrada inválida. Por favor, ingrese números válidos para todos los campos.")
+
+    def show_find_global_max_cost_path(self):
+        class PathDialog(simpledialog.Dialog):
+            def body(self, master):
+                tk.Label(master, text="Máximo de iteraciones:").grid(row=0)
+                tk.Label(master, text="Tiempo límite (segundos):").grid(row=1)
+                self.e1 = tk.Entry(master)
+                self.e2 = tk.Entry(master)
+                self.e1.grid(row=0, column=1)
+                self.e2.grid(row=1, column=1)
+                self.e1.insert(0, "1000")  # valor por defecto
+                self.e2.insert(0, "10")    # valor por defecto
+                return self.e1  # initial focus
+
+            def apply(self):
+                try:
+                    self.max_iterations = int(self.e1.get())
+                    self.time_limit = float(self.e2.get())
+                except ValueError:
+                    self.max_iterations = None
+                    self.time_limit = None
+
+        dialog = PathDialog(self.master, title="Ingrese los parámetros")
+        if all(v is not None for v in [dialog.max_iterations, dialog.time_limit]):
+            print("trying to get result")
+            result = self.analyzer.find_global_max_cost_path(dialog.max_iterations, dialog.time_limit)
+            print(result)
+            
+            path_match = re.search(r'es \[([\d, ]+)\]', result)
+            cost_match = re.search(r'con costo ([\d.]+)', result)
+            
+            if path_match and cost_match:
+                path_str = path_match.group(1)
+                path = [int(node) for node in path_str.split(', ')]
+                cost = float(cost_match.group(1))
+                
+                path_edges = list(zip(path, path[1:]))
+                subgraph = self.analyzer.G.edge_subgraph(path_edges)
+                pos = nx.spring_layout(subgraph)
+
+                self.ax.clear()
+                self.visualize_graph(subgraph, pos)
+
+                nx.draw_networkx_edges(subgraph, pos, ax=self.ax, edgelist=path_edges, edge_color='red', width=2)
+                
+                self.ax.set_title(f"Camino de Costo Máximo Global: {cost}")
+                self.canvas.draw()
+
+                messagebox.showinfo("Camino de Costo Máximo Global", 
+                                    f"Camino: {', '.join(map(str, path))}\n"
+                                    f"Costo total: {round(cost, 2)}")
+            else:
+                messagebox.showinfo("Resultado", result)
+        else:
+            messagebox.showinfo("Error", "Entrada inválida. Por favor, ingrese números válidos para todos los campos.")
+
+    def show_find_max_cost_path(self):
+        class PathDialog(simpledialog.Dialog):
+            def body(self, master):
+                tk.Label(master, text="Nodo de inicio:").grid(row=0)
+                tk.Label(master, text="Nodo de fin:").grid(row=1)
+                tk.Label(master, text="Máximo de iteraciones:").grid(row=2)
+                tk.Label(master, text="Tiempo límite (segundos):").grid(row=3)
+                self.e1 = tk.Entry(master)
+                self.e2 = tk.Entry(master)
+                self.e3 = tk.Entry(master)
+                self.e4 = tk.Entry(master)
+                self.e1.grid(row=0, column=1)
+                self.e2.grid(row=1, column=1)
+                self.e3.grid(row=2, column=1)
+                self.e4.grid(row=3, column=1)
+                self.e3.insert(0, "1000")  # valor por defecto
+                self.e4.insert(0, "10")    # valor por defecto
+                return self.e1  # initial focus
+
+            def apply(self):
+                try:
+                    self.start = int(self.e1.get())
+                    self.end = int(self.e2.get())
+                    self.max_iterations = int(self.e3.get())
+                    self.time_limit = float(self.e4.get())
+                except ValueError:
+                    self.start = None
+                    self.end = None
+                    self.max_iterations = None
+                    self.time_limit = None
+
+        dialog = PathDialog(self.master, title="Ingrese los parámetros")
+
+        if all(v is not None for v in [dialog.start, dialog.end, dialog.max_iterations, dialog.time_limit]):
+            result = self.analyzer.find_max_cost_path(dialog.start, dialog.end, dialog.max_iterations, dialog.time_limit)
+            
+            path_match = re.search(r'es \[([\d, ]+)\]', result)
+            cost_match = re.search(r'con costo ([\d.]+)', result)
+            
+            if path_match and cost_match:
+                path_str = path_match.group(1)
+                path = [int(node) for node in path_str.split(', ')]
+                cost = float(cost_match.group(1))
+                
+                if path:
+                    path_edges = list(zip(path, path[1:]))
+                    subgraph = self.analyzer.G.edge_subgraph(path_edges)
+                    pos = nx.spring_layout(subgraph)
+
+                    self.ax.clear()
+                    self.visualize_graph(subgraph, pos)
+
+                    nx.draw_networkx_edges(subgraph, pos, ax=self.ax, edgelist=path_edges, edge_color='red', width=2)
+                    
+                    self.ax.set_title(f"Camino de Costo Máximo: {cost}")
+                    self.canvas.draw()
+
+                    messagebox.showinfo("Camino de Costo Máximo", 
+                                        f"Camino: {', '.join(map(str, path))}\n"
+                                        f"Costo total: {round(cost, 2)}")
+                else:
+                    messagebox.showinfo("Resultado", "No se encontró un camino válido.")
+            else:
+                messagebox.showinfo("Resultado", result)
+        else:
+            messagebox.showinfo("Error", "Entrada inválida. Por favor, ingrese números válidos para todos los campos.")
