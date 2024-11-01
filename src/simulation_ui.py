@@ -19,6 +19,7 @@ class SimulationInputWindow(tk.Toplevel):
         self.pos = pos
         self.simulation = self.simulation_iter = None
         self.simulation_max_steps = 100
+        self.show_statictics = True
 
         super().__init__(parent)
         self.init_widgets()
@@ -178,7 +179,13 @@ class SimulationInputWindow(tk.Toplevel):
                 self.images.append(next(self.simulation_iter))
             self.update_image(self.images[self.current_image])
         else:
-            tk.messagebox.showerror("Error", "No es posible avanzar más en la simulación.")
+            self.is_playing = False
+            if self.show_statictics:
+                simulation_results_widget = DiffusionAnalyzer(self, self.images, len(self.graph.nodes))
+                self.wait_window(simulation_results_widget)
+                self.show_statictics = False
+            else:
+                tk.messagebox.showerror("Error", "No es posible avanzar más en la simulación.")
     
     def toggle_play_pause(self):
         self.is_playing = not self.is_playing
@@ -441,6 +448,83 @@ class Simulation:
     def is_similar(info1, info2, threshold):
         """Comprueba si dos informaciones son similares basándose en su producto escalar."""
         return np.dot(info1, info2) > threshold
+
+class DiffusionAnalyzer(tk.Toplevel):
+    def __init__(self, master, info, total_nodes):
+        super().__init__(master)
+        
+        self.title("Análisis de Difusión de Información")
+        self.geometry("800x600")
+
+        self.info = info
+        self.total_nodes = total_nodes
+
+        self.create_widgets()
+
+    def create_widgets(self):
+        self.frame = ttk.Frame(self, padding="3 3 12 12")
+        self.frame.grid(column=0, row=0, sticky=(tk.N, tk.W, tk.E, tk.S))
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+
+        self.analysis_var = tk.StringVar()
+        self.analysis_dropdown = ttk.Combobox(self.frame, textvariable=self.analysis_var)
+        self.analysis_dropdown['values'] = ('Porcentaje de nodos informados', 
+                                            'Tasa de crecimiento', 
+                                            'Distribución de tiempos de infección')
+        self.analysis_dropdown.grid(column=1, row=1, sticky=(tk.W, tk.E))
+        self.analysis_dropdown.bind('<<ComboboxSelected>>', self.update_plot)
+
+        self.fig = plt.Figure(figsize=(5, 4), dpi=100)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.frame)
+        self.canvas_widget = self.canvas.get_tk_widget()
+        self.canvas_widget.grid(column=1, row=2, sticky=(tk.N, tk.S, tk.E, tk.W))
+
+        self.frame.columnconfigure(1, weight=1)
+        self.frame.rowconfigure(2, weight=1)
+
+    def update_plot(self, event):
+        analysis = self.analysis_var.get()
+        self.fig.clear()
+        ax = self.fig.add_subplot(111)
+
+        if analysis == 'Porcentaje de nodos informados':
+            self.plot_informed_percentage(ax)
+        elif analysis == 'Tasa de crecimiento':
+            self.plot_growth_rate(ax)
+        elif analysis == 'Distribución de tiempos de infección':
+            self.plot_infection_time_distribution(ax)
+
+        self.canvas.draw()
+
+    def plot_informed_percentage(self, ax):
+        steps = range(1, len(self.info) + 1)
+        percentages = [sum(1 for node in step.values() if node is not None) / self.total_nodes * 100 for step in self.info]
+        ax.plot(steps, percentages, marker='o')
+        ax.set_xlabel('Pasos')
+        ax.set_ylabel('Porcentaje de nodos informados')
+        ax.set_title('Porcentaje de nodos informados por paso')
+
+    def plot_growth_rate(self, ax):
+        informed_counts = [sum(1 for node in step.values() if node is not None) for step in self.info]
+        growth_rates = [informed_counts[i] - informed_counts[i-1] if i > 0 else informed_counts[0] for i in range(len(informed_counts))]
+        steps = range(1, len(self.info) + 1)
+        ax.bar(steps, growth_rates)
+        ax.set_xlabel('Pasos')
+        ax.set_ylabel('Tasa de crecimiento')
+        ax.set_title('Tasa de crecimiento de nodos informados por paso')
+
+    def plot_infection_time_distribution(self, ax):
+        infection_times = []
+        for node in self.info[-1].keys():
+            for step, info in enumerate(self.info):
+                if info.get(node, None) is not None:
+                    infection_times.append(step + 1)
+                    break
+        ax.hist(infection_times, bins=range(1, len(self.info) + 2), align='left', rwidth=0.8)
+        ax.set_xlabel('Paso de infección')
+        ax.set_ylabel('Número de nodos')
+        ax.set_title('Distribución de tiempos de infección')
 
 if __name__ == '__main__':
     root = tk.Tk()
